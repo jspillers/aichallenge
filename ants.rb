@@ -314,11 +314,13 @@ class AI
     ret
   end
 
-  def update_or_create_ant(location)
-    @my_ants.each do |ant|
-      ant.position_history.last
-      Ant.new(alive: true, owner: owner, square: @game_map[row][col])
+  def update_or_create_ant(position)
+    ant = @my_ants.select do |ant|
+      ant_previous_pos = ant.position_history.last
+      new_pos = @game_map[ant_previous_pos[0]][ant_previous_pos[1]].neighbor(ant.order_history.last)
+      position == new_pos
     end
+    Ant.new(alive: true, owner: owner, square: @game_map[row][col])
   end
 
   # call-seq:
