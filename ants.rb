@@ -6,15 +6,22 @@
 class Ant
   # Owner of this ant. If it's 0, it's your ant.
   attr_accessor :owner
+
   # Square this ant sits on.
   attr_accessor :square
 
-  attr_accessor :alive, :ai
+  attr_accessor :alive, :ai, :position_history, :order_history
+
+  def expected_position
+    @position_history.last
+  end
 
   def initialize(opts={})
     @alive  = opts[:alive]
     @owner  = opts[:owner]
     @square = opts[:square]
+    @position_history << [@square.row, @square.col]
+    @order_history = []
   end
 
   # True if ant is alive.
@@ -49,6 +56,8 @@ class Ant
 
   # Order this ant to go in given direction. Equivalent to ai.order ant, direction.
   def order(direction, ai)
+    @positions << [@square.row, @square.col]
+    @order_history << direction
     ai.order self, direction
   end
 end
@@ -153,6 +162,7 @@ class AI
     @game_map = nil
     @turn_number = 0
     @did_setup = false
+    @my_ants = []
   end
 
   # Returns a read-only hash of all settings.
@@ -266,7 +276,6 @@ class AI
       end
     end
 
-    @my_ants = []
     @enemy_ants = []
     @food = []
 
@@ -285,8 +294,7 @@ class AI
         @game_map[row][col].hill = owner
       when 'a'
 
-        a = Ant.new(alive: true, owner: owner, square: @game_map[row][col])
-        @game_map[row][col].ant = a
+        @game_map[row][col].ant = find_or_create_ant(@game_map[row][col])
 
         if owner == 0
           @my_ants << a
@@ -306,7 +314,12 @@ class AI
     ret
   end
 
-
+  def update_or_create_ant(location)
+    @my_ants.each do |ant|
+      ant.position_history.last
+      Ant.new(alive: true, owner: owner, square: @game_map[row][col])
+    end
+  end
 
   # call-seq:
   #   order(ant, direction)
@@ -332,14 +345,5 @@ class AI
     [row % @rows, col % @cols]
   end
 end
-
-
-
-
-
-
-
-
-
 
 
