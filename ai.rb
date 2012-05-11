@@ -1,140 +1,4 @@
-# Ants AI Challenge framework
-# by Matma Rex (matma.rex@gmail.com)
-# Released under CC-BY 3.0 license
-
-# Represents a single ant.
-class Ant
-  # Owner of this ant. If it's 0, it's your ant.
-  attr_accessor :owner
-
-  # Square this ant sits on.
-  attr_accessor :square
-
-  attr_accessor :alive, :ai, :position_history, :order_history
-
-  def expected_position
-    @position_history.last
-  end
-
-  def initialize(opts={})
-    @alive  = opts[:alive]
-    @owner  = opts[:owner]
-    @square = opts[:square]
-    @position_history << [@square.row, @square.col]
-    @order_history = []
-  end
-
-  # True if ant is alive.
-  def alive?
-    @alive
-  end
-
-  # True if ant is not alive.
-  def dead?
-    !@alive
-  end
-
-  # Equivalent to ant.owner == 0.
-  def mine?
-    owner == 0
-  end
-
-  # Equivalent to ant.owner != 0.
-  def enemy?
-    owner != 0
-  end
-
-  # Returns the row of square this ant is standing at.
-  def row
-    @square.row
-  end
-
-  # Returns the column of square this ant is standing at.
-  def col
-    @square.col
-  end
-
-  # Order this ant to go in given direction. Equivalent to ai.order ant, direction.
-  def order(direction, ai)
-    @positions << [@square.row, @square.col]
-    @order_history << direction
-    ai.order self, direction
-  end
-end
-
-# Represent a single field of the map.
-class Square
-  # Ant which sits on this square, or nil. The ant may be dead.
-  attr_accessor :ant
-  # Which row this square belongs to.
-  attr_accessor :row
-  # Which column this square belongs to.
-  attr_accessor :col
-
-  attr_accessor :water, :food, :hill
-
-  # water, food, hill, ant, row, col, ai
-  def initialize(opts)
-    @water = opts[:water]
-    @food  = opts[:food]
-    @hill  = opts[:hill]
-    @ant   = opts[:ant]
-    @row   = opts[:row]
-    @col   = opts[:col]
-  end
-
-  # Returns true if this square is not water.
-  def land?
-    !@water
-  end
-
-  # Returns true if this square is water.
-  def water?
-    @water
-  end
-
-  # Returns true if this square contains food.
-  def food?
-    @food
-  end
-
-  # Returns owner number if this square is a hill, false if not
-  def hill?
-    @hill
-  end
-
-  # Returns true if this square has an alive ant.
-  def ant?
-    @ant and @ant.alive?
-  end
-
-  # Square is passable if it's land, it doesn't contain alive ants, and it doesn't contain food.
-  def passable?
-    land? && !ant? && !food?
-  end
-
-  # Returns a square neighboring this one in given direction.
-  def neighbor(direction, ai)
-    direction = direction.to_s.upcase.to_sym # canonical: :N, :E, :S, :W
-
-    case direction
-    when :N
-      row, col = ai.normalize @row - 1, @col
-    when :E
-      row, col = ai.normalize @row, @col + 1
-    when :S
-      row, col = ai.normalize @row + 1, @col
-    when :W
-      row, col = ai.normalize @row, @col - 1
-    else
-      raise 'incorrect direction'
-    end
-
-    return ai.game_map[row][col]
-  end
-
-end
-
+# base game controller
 class AI
   # GameMap, as an array of arrays.
   attr_accessor :game_map
@@ -163,6 +27,7 @@ class AI
     @turn_number = 0
     @did_setup = false
     @my_ants = []
+    @enemy_ants = []
   end
 
   # Returns a read-only hash of all settings.
@@ -276,8 +141,8 @@ class AI
       end
     end
 
-    @enemy_ants = []
     @food = []
+    ant_locations = {}
 
     until((rd = @stdin.gets.strip) == 'go')
       _, type, row, col, owner = *rd.match(/(w|f|h|a|d) (\d+) (\d+)(?: (\d+)|)/)
@@ -293,17 +158,17 @@ class AI
       when 'h'
         @game_map[row][col].hill = owner
       when 'a'
-
-        @game_map[row][col].ant = find_or_create_ant(@game_map[row][col])
-
         if owner == 0
-          @my_ants << a
+          ant_locations.merge!("my_ant:#{row}-#{col}" => true)
         else
-          @enemy_ants << a
+          ant_locations.merge!("enemy_ant:#{row}-#{col}" => true)
         end
       when 'd'
-        d = Ant.new(alive: false, owner: owner, square: @game_map[row][col])
-        @game_map[row][col].ant = d
+        if owner == 0
+          ant_locations.merge!("my_ant:#{row}-#{col}" => false)
+        else
+          ant_locations.merge!("enemy_ant:#{row}-#{col}" => false)
+        end
       when 'r'
         # pass
       else
@@ -311,17 +176,52 @@ class AI
       end
     end
 
+    update_ants('my_ant', @my_ants, ant_locations)
+    update_ants('enemy_ant', @enemy_ants, ant_locations)
+
+    # any locations not previously used for updating must be newly spawned ants... add
+    # them to the array of ant objects
+    ant_locations.each do |k,v|
+      location = k.split(":")[1].split('-')
+      if k.match /my_ant/
+        @my_ants << Ant.new(alive: true, owner: 0, square: @game_map[location[0].to_i][location[1].to_i])
+      elsif k.match /enemy_ant/
+        @enemy_ants << Ant.new(alive: true, owner: 1, square: @game_map[location[0].to_i][location[1].to_i])
+      end
+    end
+
+    #@stdout.puts ant_locations.inspect
+    #@stdout.puts @my_ants.inspect
+
     ret
   end
 
-  def update_or_create_ant(position)
-    ant = @my_ants.select do |ant|
-      ant_previous_pos = ant.position_history.last
-      new_pos = @game_map[ant_previous_pos[0]][ant_previous_pos[1]].neighbor(ant.order_history.last)
-      position == new_pos
+
+  # loop through all ant objects and update their location and aliveness
+  # remove from the ants array if not found in the new ant_locations hash
+  def update_ants(key_prefix, collection, ant_locations)
+    collection.each do |ant|
+      expected_square = ant.expected_new_position(self)
+      expected_key = "#{key_prefix}:#{expected_square.row}-#{expected_square.col}"
+
+      if ant_locations.has_key?(expected_key)
+        # update the ants location
+        ant.square = expected_square
+
+        # update alive or dead
+        ant.alive = ant_locations[expected_key]
+
+        @game_map[ant.row][ant.col].ant = ant
+
+        # update complete... remove from the hash of new locations
+        ant_locations.delete(expected_key)
+      else
+        # ant is no longer on the map... remove from array
+        collection.delete(ant)
+      end
     end
-    Ant.new(alive: true, owner: owner, square: @game_map[row][col])
   end
+
 
   # call-seq:
   #   order(ant, direction)
@@ -347,5 +247,3 @@ class AI
     [row % @rows, col % @cols]
   end
 end
-
-
