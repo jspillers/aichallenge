@@ -69,9 +69,9 @@ class Square
     end
 
     square = ai.game_map[row][col]
-    puts square.class.to_s
-    puts square.row.to_s
-    puts square.col.to_s # replac ethis crap with a logger
+    AI.logger.info square.class.to_s
+    AI.logger.info square.row.to_s
+    AI.logger.info square.col.to_s
   end
 
 end

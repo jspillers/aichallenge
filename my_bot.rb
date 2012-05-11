@@ -1,13 +1,16 @@
 $:.unshift File.dirname($0)
-require 'ai.rb'
-require 'square.rb'
-require 'ant.rb'
+require 'rubygems'
+require 'ai'
+require 'square'
+require 'ant'
+require 'logger'
 
 ai=AI.new
 
 ai.setup do |ai|
   # your setup code here, if any
   @dirs = [:N,:E,:S,:W]
+  AI.logger = Logger.new('ants.log')
 end
 
 

@@ -20,6 +20,14 @@ class AI
 
   attr_accessor :food, :my_ants, :enemy_ants
 
+  def self.logger=(logger)
+    @logger = logger
+  end
+
+  def self.logger
+    @logger
+  end
+
   # Initialize a new AI object. Arguments are streams this AI will read from and write to.
   def initialize(stdin=$stdin, stdout=$stdout)
     @stdin, @stdout = stdin, stdout
