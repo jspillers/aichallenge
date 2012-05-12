@@ -1,11 +1,15 @@
 $:.unshift File.dirname($0)
+
 require 'rubygems'
+require 'a_star'
+require 'set'
 require 'ai'
 require 'square'
 require 'ant'
 require 'logger'
 
 ai=AI.new
+AI.ai = ai
 
 ai.setup do |ai|
   # your setup code here, if any
@@ -15,16 +19,31 @@ end
 
 
 ai.run do |ai|
-  square_orders = []
+  square = ai.game_map[35][10]
 
-  dir = @dirs[rand(0..3)]
-  ai.my_ants.first.order(dir,ai)
+  #AI.logger.debug 'square: ' + square.to_a.inspect
 
-  #ai.my_ants.each do |ant|
-  #  if ant.square.neighbor(dir, ai).passable? && !square_orders.include?(ant.square.neighbor(dir, ai))
-  #    square_orders << ant.square.neighbor(dir, ai)
-  #    ant.order(dir, ai)
-  #  end
-  #end
+  Ant.move_orders = []
 
+  ai.my_ants.each_with_index do |ant,i|
+    AI.logger.debug 'ant.has_path?: ' + ant.has_path?.to_s
+
+    if !ant.has_path?
+
+      if ai.food.empty?
+        # wander if no food found
+        ant.path << ant.neighbor(@dirs[rand(0..3)])
+      else
+        food_loc = ai.food.shift
+        food_square = ai.game_map[food_loc[0]][food_loc[1]]
+
+        AI.logger.debug 'food square to_a: ' + food_square.to_a.inspect
+
+        ant.path = ant.set_path_to(food_square)
+        AI.logger.debug 'path: ' + ant.path.inspect
+      end
+    end
+
+    ant.move_to_next_path_node
+  end
 end

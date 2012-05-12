@@ -20,12 +20,8 @@ class AI
 
   attr_accessor :food, :my_ants, :enemy_ants
 
-  def self.logger=(logger)
-    @logger = logger
-  end
-
-  def self.logger
-    @logger
+  class << self
+    attr_accessor :logger, :ai
   end
 
   # Initialize a new AI object. Arguments are streams this AI will read from and write to.
@@ -204,32 +200,27 @@ class AI
     ret
   end
 
-
   # loop through all ant objects and update their location and aliveness
   # remove from the ants array if not found in the new ant_locations hash
   def update_ants(key_prefix, collection, ant_locations)
     collection.each do |ant|
-      expected_square = ant.expected_new_position(self)
-      expected_key = "#{key_prefix}:#{expected_square.row}-#{expected_square.col}"
-
-      if ant_locations.has_key?(expected_key)
+      if ant_locations.has_key?(ant.ant_id)
         # update the ants location
-        ant.square = expected_square
+        ant.square = ant.expected_square
 
         # update alive or dead
-        ant.alive = ant_locations[expected_key]
+        ant.alive = ant_locations[ant.ant_id]
 
         @game_map[ant.row][ant.col].ant = ant
 
         # update complete... remove from the hash of new locations
-        ant_locations.delete(expected_key)
+        ant_locations.delete(ant.ant_id)
       else
         # ant is no longer on the map... remove from array
         collection.delete(ant)
       end
     end
   end
-
 
   # call-seq:
   #   order(ant, direction)

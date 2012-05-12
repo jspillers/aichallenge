@@ -1,5 +1,5 @@
 # Represent a single field of the map.
-class Square
+class Square < AStarNode
   # Ant which sits on this square, or nil. The ant may be dead.
   attr_accessor :ant
 
@@ -11,7 +11,7 @@ class Square
 
   attr_accessor :water, :food, :hill
 
-  # water, food, hill, ant, row, col, ai
+  # water, food, hill, ant, row, col
   def initialize(opts)
     @water = opts[:water]
     @food  = opts[:food]
@@ -19,6 +19,10 @@ class Square
     @ant   = opts[:ant]
     @row   = opts[:row]
     @col   = opts[:col]
+  end
+
+  def to_a
+    [@row, @col]
   end
 
   # Returns true if this square is not water.
@@ -52,26 +56,51 @@ class Square
   end
 
   # Returns a square neighboring this one in given direction.
-  def neighbor(direction, ai)
+  def neighbor(direction)
     direction = direction.to_s.upcase.to_sym # canonical: :N, :E, :S, :W
 
-    case direction
+    row, col = case direction
     when :N
-      row, col = ai.normalize @row - 1, @col
+      AI.ai.normalize @row - 1, @col
     when :E
-      row, col = ai.normalize @row, @col + 1
+      AI.ai.normalize @row, @col + 1
     when :S
-      row, col = ai.normalize @row + 1, @col
+      AI.ai.normalize @row + 1, @col
     when :W
-      row, col = ai.normalize @row, @col - 1
+      AI.ai.normalize @row, @col - 1
     else
       raise 'incorrect direction'
     end
 
-    square = ai.game_map[row][col]
-    AI.logger.info square.class.to_s
-    AI.logger.info square.row.to_s
-    AI.logger.info square.col.to_s
+    AI.ai.game_map[row][col]
+  end
+
+  def direction_of_adjacent(goal_square)
+
+    case to_a
+    when [goal_square.row - 1, goal_square.col]
+      :S
+    when [goal_square.row, goal_square.col + 1]
+      :W
+    when [goal_square.row + 1, goal_square.col]
+      :N
+    when [goal_square.row, goal_square.col - 1]
+      :E
+    else
+      raise "goal square at #{goal_square.to_a} is not adjacent to #{to_a}"
+    end
+  end
+
+  def neighbors
+    sqrs = ['n','e','s','w'].map do |dir|
+      square = neighbor(dir)
+      square if square && square.land?
+    end
+    sqrs.compact
+  end
+
+  def guess_distance(goal_square)
+    [(row - goal_square.row).abs, (col - goal_square.col).abs].max
   end
 
 end
