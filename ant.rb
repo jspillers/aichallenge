@@ -87,15 +87,8 @@ class Ant
 
   def set_path_to(goal_square)
     calculated_path = square.calculate_path_to(goal_square)
-    #AI.logger.debug 'calculated_path: ' + calculated_path[1].map{|s| s.to_a }.inspect
-    #AI.logger.debug 'do i have a calculated_path? ' + (!calculated_path.nil? && !calculated_path[1].nil?).to_s
-    #AI.logger.debug 'ant current square: ' + square.to_a.inspect
-
     if !calculated_path.nil? && !calculated_path[1].nil?
-      AI.logger.debug 'first calculated_path matches ant current square: ' + (calculated_path[1].first.to_a == square.to_a).to_s
-
       calculated_path[1].shift if !calculated_path[1].empty? && calculated_path[1].first.to_a == square.to_a
-      AI.logger.debug 'calculated_path after shift: ' + calculated_path[1].map{|s| s.to_a }.inspect
       @path = calculated_path[1]
     end
   end

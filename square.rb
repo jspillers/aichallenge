@@ -37,7 +37,7 @@ class Square < AStarNode
 
   # Returns true if this square contains food.
   def food?
-    @food
+    @food.is_a?(Food)
   end
 
   # Returns owner number if this square is a hill, false if not

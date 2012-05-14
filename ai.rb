@@ -18,7 +18,7 @@ class AI
   # Array of scores of players (you are player 0). Available only after game's over.
   attr_accessor :score
 
-  attr_accessor :food, :my_ants, :enemy_ants
+  attr_accessor :my_ants, :enemy_ants
 
   class << self
     attr_accessor :logger, :ai
@@ -32,6 +32,7 @@ class AI
     @did_setup = false
     @my_ants = []
     @enemy_ants = []
+    @food_squares = []
   end
 
   # Returns a read-only hash of all settings.
@@ -139,13 +140,12 @@ class AI
     # reset the game_map data
     @game_map.each do |row|
       row.each do |square|
-        square.food = false
         square.ant = nil
         square.hill = false
       end
     end
 
-    @food = []
+    foods = []
     ant_locations = {}
 
     until((rd = @stdin.gets.strip) == 'go')
@@ -157,8 +157,7 @@ class AI
       when 'w'
         @game_map[row][col].water = true
       when 'f'
-        @game_map[row][col].food = true
-        @food << [row, col]
+        foods << [row, col]
       when 'h'
         @game_map[row][col].hill = owner
       when 'a'
@@ -187,15 +186,14 @@ class AI
     # them to the array of ant objects
     ant_locations.each do |k,v|
       location = k.split(":")[1].split('-')
-      if k.match /my_ant/
+      if k.match /^my_ant:/
         @my_ants << Ant.new(alive: true, owner: 0, square: @game_map[location[0].to_i][location[1].to_i])
-      elsif k.match /enemy_ant/
+      elsif k.match /^enemy_ant:/
         @enemy_ants << Ant.new(alive: true, owner: 1, square: @game_map[location[0].to_i][location[1].to_i])
       end
     end
 
-    #@stdout.puts ant_locations.inspect
-    #@stdout.puts @my_ants.inspect
+    Food.update_foods(foods)
 
     ret
   end
@@ -218,6 +216,9 @@ class AI
       else
         # ant is no longer on the map... remove from array
         collection.delete(ant)
+
+        # a dead ant is not able to get the food... unassign
+        ant.path.last.food.ant_en_route = nil if ant.has_path? && ant.path.last.food?
       end
     end
   end
