@@ -1,13 +1,14 @@
 $:.unshift File.dirname($0)
 
 require 'rubygems'
-require 'a_star'
 require 'set'
-require 'ai'
-require 'square'
-require 'food'
-require 'ant'
 require 'logger'
+
+require 'lib/a_star'
+require 'lib/ai'
+require 'lib/square'
+require 'lib/food'
+require 'lib/ant'
 
 ai=AI.new
 AI.ai = ai
