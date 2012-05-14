@@ -98,7 +98,7 @@ class Ant
   end
 
   def move_to_next_path_node
-    if @path && !@path.empty? && @path[0].passable? && !Ant.move_orders.include?(@path[0])
+    if alive && has_path? && @path[0].passable? && !Ant.move_orders.include?(@path[0])
       move_target = @path.shift
       Ant.move_orders << move_target
       move_to(move_target)
