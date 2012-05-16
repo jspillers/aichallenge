@@ -16,7 +16,7 @@ class Food
   def consumed!
     ant_en_route.path = [] if ant_en_route.is_a?(Ant)
     ant_en_route = nil
-    AI.ai.game_map[row][col].food = nil
+    GameMap.square_at(row, col).food = nil
   end
 
   # class methods
@@ -27,18 +27,18 @@ class Food
     @foods = [] unless @foods.is_a?(Array)
     curr_foods = @foods.map(&:to_a)
 
-
     # create new foods for food locations that are reported
     # but have not had food objects created for them
     (food_locs - (curr_foods & food_locs)).each do |new_food_loc|
-      food = Food.new(square: AI.ai.game_map[new_food_loc[0]][new_food_loc[1]])
+      square = GameMap.square_at(new_food_loc)
+      food = Food.new(square: square)
       @foods << food
-      AI.ai.game_map[new_food_loc[0]][new_food_loc[1]].food = food
+      square.food = food
     end
 
     # remove foods that exist already but are not reported (ie: eaten)
     (curr_foods - food_locs).each do |consumed_food|
-      food = AI.ai.game_map[consumed_food[0]][consumed_food[1]].food
+      food = GameMap.square_at(consumed_food).food
       food.consumed!
       @foods.delete(food)
     end
@@ -55,7 +55,13 @@ class Food
   end
 
   def self.unassigned_foods
-    @foods.select {|f| f.ant_en_route.nil? }
+    foods = @foods.select {|f| !f.ant_en_route.is_a?(Ant) }
+    AI.logger.debug 'unassigned food locations: ' + foods.map(&:to_a).inspect
+    AI.logger.debug 'all food locations: ' + @foods.map(&:to_a).inspect
+    AI.logger.debug 'food and assigned ant: ' + @foods.map{|f| [f.to_a, f.ant_en_route] }.inspect
+    AI.logger.debug '----------------' * 5
+
+    foods
   end
 
   def self.nearest_unassigned_from(ant_square)

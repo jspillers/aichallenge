@@ -72,7 +72,7 @@ class Square < AStarNode
       raise 'incorrect direction'
     end
 
-    AI.ai.game_map[row][col]
+    GameMap.square_at(row, col)
   end
 
   def direction_of_adjacent(goal_square)

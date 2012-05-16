@@ -1,8 +1,5 @@
 # base game controller
 class AI
-  # GameMap, as an array of arrays.
-  attr_accessor :game_map
-
   # Number of current turn. If it's 0, we're in setup turn. If it's :game_over, you don't need to give any orders; instead, you can find out the number of players and their scores in this game.
   attr_accessor :turn_number
 
@@ -24,14 +21,14 @@ class AI
     attr_accessor :logger, :ai
   end
 
+  self.logger = Logger.new('ants.log')
+
   # Initialize a new AI object. Arguments are streams this AI will read from and write to.
   def initialize(stdin=$stdin, stdout=$stdout)
     @stdin, @stdout = stdin, stdout
-    @game_map = nil
+    GameMap.map_array = []
     @turn_number = 0
     @did_setup = false
-    @my_ants = []
-    @enemy_ants = []
     @food_squares = []
   end
 
@@ -61,7 +58,7 @@ class AI
     @stdout.puts 'go'
     @stdout.flush
 
-    @game_map = Array.new(@rows) {|row|
+    GameMap.map_array = Array.new(@rows) {|row|
       Array.new(@cols) {|col|
         Square.new({
           water: false, food: false, hill: false,
@@ -90,6 +87,7 @@ class AI
   # Internal; reads zero-turn input (game settings).
   def read_intro
     rd = @stdin.gets.strip
+
     warn "unexpected: #{rd}" unless rd == 'turn 0'
 
     until((rd = @stdin.gets.strip) == 'ready')
@@ -124,10 +122,12 @@ class AI
       @turn_number = :game_over
 
       rd = @stdin.gets.strip
+
       _, players = *rd.match(/\Aplayers (\d+)\Z/)
       @players = players.to_i
 
       rd = @stdin.gets.strip
+
       _, score = *rd.match(/\Ascore (\d+(?: \d+)+)\Z/)
       @score = score.split(' ').map{|s| s.to_i}
 
@@ -138,15 +138,14 @@ class AI
     end
 
     # reset the game_map data
-    @game_map.each do |row|
-      row.each do |square|
-        square.ant = nil
-        square.hill = false
-      end
+    GameMap.squares.each do |square|
+      square.ant = nil
+      square.hill = false
     end
 
     foods = []
-    ant_locations = {}
+    my_ants = {}
+    enemy_ants = {}
 
     until((rd = @stdin.gets.strip) == 'go')
       _, type, row, col, owner = *rd.match(/(w|f|h|a|d) (\d+) (\d+)(?: (\d+)|)/)
@@ -155,22 +154,22 @@ class AI
 
       case type
       when 'w'
-        @game_map[row][col].water = true
+        GameMap.square_at(row,col).water = true
       when 'f'
         foods << [row, col]
       when 'h'
-        @game_map[row][col].hill = owner
+        GameMap.square_at(row,col).hill = owner
       when 'a'
         if owner == 0
-          ant_locations.merge!("my_ant:#{row}-#{col}" => true)
+          my_ants.merge!(Ant.ant_id(owner, row, col) => true)
         else
-          ant_locations.merge!("enemy_ant:#{row}-#{col}" => true)
+          enemy_ants.merge!(Ant.ant_id(owner, row, col) => true)
         end
       when 'd'
         if owner == 0
-          ant_locations.merge!("my_ant:#{row}-#{col}" => false)
+          my_ants.merge!(Ant.ant_id(owner, row, col) => false)
         else
-          ant_locations.merge!("enemy_ant:#{row}-#{col}" => false)
+          enemy_ants.merge!(Ant.ant_id(owner, row, col) => false)
         end
       when 'r'
         # pass
@@ -179,48 +178,12 @@ class AI
       end
     end
 
-    update_ants('my_ant', @my_ants, ant_locations)
-    update_ants('enemy_ant', @enemy_ants, ant_locations)
-
-    # any locations not previously used for updating must be newly spawned ants... add
-    # them to the array of ant objects
-    ant_locations.each do |k,v|
-      location = k.split(":")[1].split('-')
-      if k.match /^my_ant:/
-        @my_ants << Ant.new(alive: true, owner: 0, square: @game_map[location[0].to_i][location[1].to_i])
-      elsif k.match /^enemy_ant:/
-        @enemy_ants << Ant.new(alive: true, owner: 1, square: @game_map[location[0].to_i][location[1].to_i])
-      end
-    end
+    Ant.update_my_ants(my_ants)
+    Ant.update_enemy_ants(enemy_ants)
 
     Food.update_foods(foods)
 
     ret
-  end
-
-  # loop through all ant objects and update their location and aliveness
-  # remove from the ants array if not found in the new ant_locations hash
-  def update_ants(key_prefix, collection, ant_locations)
-    collection.each do |ant|
-      if ant_locations.has_key?(ant.ant_id)
-        # update the ants location
-        ant.square = ant.expected_square
-
-        # update alive or dead
-        ant.alive = ant_locations[ant.ant_id]
-
-        @game_map[ant.row][ant.col].ant = ant
-
-        # update complete... remove from the hash of new locations
-        ant_locations.delete(ant.ant_id)
-      else
-        # ant is no longer on the map... remove from array
-        collection.delete(ant)
-
-        # a dead ant is not able to get the food... unassign
-        ant.path.last.food.ant_en_route = nil if ant.has_path? && ant.path.last.food?
-      end
-    end
   end
 
   # call-seq:

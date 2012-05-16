@@ -6,7 +6,73 @@ class Ant
   # Square this ant sits on.
   attr_accessor :square
 
-  attr_accessor :alive, :position_history, :order_history, :path
+  attr_accessor :alive, :position_history, :order_history, :path, :state
+
+  class << self
+    attr_accessor :my_ants, :enemy_ants
+  end
+
+  def self.ant_id(owner, row, col)
+    "#{owner}:#{row}-#{col}"
+  end
+
+  def self.update_my_ants(ant_locations)
+    @my_ants ||= []
+    update_ants(@my_ants, ant_locations)
+  end
+
+  def self.update_enemy_ants(ant_locations)
+    @enemy_ants ||= []
+    update_ants(@enemy_ants, ant_locations)
+  end
+
+  # loop through all ant objects and update their location and aliveness
+  # remove from the ants array if not found in the new ant_locations hash
+  def self.update_ants(collection, ant_locations)
+    collection.each do |ant|
+      if ant_locations.has_key?(ant.ant_id)
+        # update the ants location
+        ant.square = ant.expected_square
+
+        # update alive or dead
+        ant.alive = ant_locations[ant.ant_id]
+
+        # update the game_map square with reference to this ant
+        GameMap.square_at(ant.row, ant.col).ant = ant
+
+        # update complete... remove from the hash of new locations
+        ant_locations.delete(ant.ant_id)
+      else
+        # ant is no longer on the map... remove from array
+        collection.delete(ant)
+
+        # a dead ant is not able to get the food... unassign
+        ant.path.last.food.ant_en_route = nil if ant.has_path? && ant.path.last.food?
+      end
+    end
+
+    # any locations not previously used for updating must be newly spawned ants... add
+    # them to the array of ant objects
+    ant_locations.each do |k,v|
+      owner_and_location = k.split(':')
+      owner, location = owner_and_location[0], owner_and_location[1].split('-')
+
+      if owner && location
+        ant = Ant.new(
+          alive: true,
+          owner: owner,
+          square: GameMap.square_at(location)
+        )
+        ant.position_history = [[ant.row, ant.col]]
+        collection << ant
+      end
+    end
+
+  end
+
+  class << self
+    attr_accessor :move_orders
+  end
 
   def initialize(opts={})
     @alive  = opts[:alive]
@@ -18,14 +84,6 @@ class Ant
     @path             = []
   end
 
-  def self.ant_id(prefix, row, col)
-    "#{prefix}:#{row}-#{col}"
-  end
-
-  class << self
-    attr_accessor :move_orders
-  end
-
   def ant_id
     row, col = if order_history.empty?
       @position_history.last
@@ -34,7 +92,6 @@ class Ant
       [square.row, square.col]
     end
 
-    owner = mine? ? 'my_ant' : 'enemy_ant'
     self.class.ant_id(owner, row, col)
   end
 
@@ -79,14 +136,14 @@ class Ant
     if order_history.empty?
       square
     else
-      previous_pos = position_history.last
-      square = AI.ai.game_map[previous_pos[0]][previous_pos[1]]
-      square.neighbor(order_history.last)
+      square = GameMap.square_at(position_history.last)
+      square.neighbor(order_history.last) if square
     end
   end
 
   def set_path_to(goal_square)
     calculated_path = square.calculate_path_to(goal_square)
+    AI.logger.debug 'calculated path: ' + calculated_path[1].map(&:to_a).inspect
     if !calculated_path.nil? && !calculated_path[1].nil?
       calculated_path[1].shift if !calculated_path[1].empty? && calculated_path[1].first.to_a == square.to_a
       @path = calculated_path[1]
